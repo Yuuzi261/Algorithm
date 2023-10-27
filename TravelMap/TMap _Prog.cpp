@@ -226,12 +226,13 @@ double cal_Cartesian_distance(Coordinate coo1, Coordinate coo2) {
     // Radius of the Earth (km)
     const double R = 6371.0;
     // Convert coordinates to Cartesian coordinate system
-    double x1 = R * cos(to_radians(coo1.get_latitude())) * cos(to_radians(coo1.get_longitude()));
-    double y1 = R * cos(to_radians(coo1.get_latitude())) * sin(to_radians(coo1.get_longitude()));
-    double z1 = R * sin(to_radians(coo1.get_latitude()));
-    double x2 = R * cos(to_radians(coo2.get_latitude())) * cos(to_radians(coo2.get_longitude()));
-    double y2 = R * cos(to_radians(coo2.get_latitude())) * sin(to_radians(coo2.get_longitude()));
-    double z2 = R * sin(to_radians(coo2.get_latitude()));
+    double long1 = coo1.get_longitude(), long2 = coo2.get_longitude(), lati1 = coo1.get_latitude(), lati2 = coo2.get_latitude();
+    double x1 = R * cos(to_radians(lati1)) * cos(to_radians(long1));
+    double y1 = R * cos(to_radians(lati1)) * sin(to_radians(long1));
+    double z1 = R * sin(to_radians(lati1));
+    double x2 = R * cos(to_radians(lati2)) * cos(to_radians(long2));
+    double y2 = R * cos(to_radians(lati2)) * sin(to_radians(long2));
+    double z2 = R * sin(to_radians(lati2));
     // Calculate Euclidean distance
     return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2) + pow(z1 - z2, 2));
 }
