@@ -5,6 +5,7 @@
 #include <cmath>
 
 #define PI acos(-1);
+#define Earth_R 6371.0;     // Radius of the Earth (km)
 
 using namespace std;
 
@@ -30,10 +31,11 @@ class POI {
         double get_latitude();
         string get_name();
         Coordinate get_coordinate();
-
+        Coordinate get_cartesian_coordinate();
     private:
-        Coordinate coordinate;
+        Coordinate coordinate, cartesian_coordinate;
         string name;
+        void cal_cartesian_coordinate();
 };
 
 class Edge {
@@ -76,10 +78,13 @@ class Map {
 void BruteForceClostestPoints(Map&, Coordinate&, Coordinate&);
 void BruteForceConvexHull(Map&);
 
+// other functions
+double cal_Convex_Hull_area(Map&);
+
 // tools
 double to_radians(double);
-double cal_distance(Coordinate, Coordinate);
-double cal_Cartesian_distance(Coordinate, Coordinate);
+double cal_distance(POI, POI);
+double cal_Cartesian_distance(POI, POI);
 
 int main(void) {
 
@@ -123,6 +128,7 @@ int main(void) {
         total_distance += edge.get_distance();
     }
     cout << endl << "Total Distance: " << total_distance << " km" << endl;
+    cout << "Total Area: " << cal_Convex_Hull_area(map) << " km^2" << endl;
 
     return 0;
 
@@ -136,19 +142,26 @@ double Coordinate::get_longitude() { return this->longitude; }
 double Coordinate::get_latitude() { return this->latitude; }
 
 // POI class
-POI::POI() { this->coordinate = Coordinate(); this->name = ""; }
-POI::POI(double longitude, double latitude) { this->coordinate = Coordinate(longitude, latitude); this->name = ""; }
-POI::POI(double longitude, double latitude, string name) { this->coordinate = Coordinate(longitude, latitude); this->name = name; }
+POI::POI() { this->coordinate = Coordinate(); this->cartesian_coordinate = Coordinate(); this->name = ""; }
+POI::POI(double longitude, double latitude) { this->coordinate = Coordinate(longitude, latitude); this->cal_cartesian_coordinate(); this->name = ""; }
+POI::POI(double longitude, double latitude, string name) { this->coordinate = Coordinate(longitude, latitude); this->cal_cartesian_coordinate(); this->name = name; }
 void POI::set_coordinate(double longitude, double latitude) { this->set_coordinate(longitude, latitude); }
 void POI::set_coordinate(Coordinate coordinate) { this->coordinate = coordinate; }
 double POI::get_longitude() { return this->coordinate.get_longitude(); }
 double POI::get_latitude() { return this->coordinate.get_latitude(); }
 string POI::get_name() { return this->name; }
 Coordinate POI::get_coordinate() { return this->coordinate; }
+Coordinate POI::get_cartesian_coordinate() { return this->cartesian_coordinate; }
+void POI::cal_cartesian_coordinate() {
+    double longitude = this->get_longitude(), latitude = this->get_latitude();
+    double x = cos(to_radians(latitude)) * cos(to_radians(longitude)) * Earth_R;
+    double y = cos(to_radians(latitude)) * sin(to_radians(longitude)) * Earth_R;
+    this->cartesian_coordinate = Coordinate(x, y);
+}
 
 // Edge class
 Edge::Edge(POI poi1, POI poi2) { set_edge(poi1, poi2); }
-void Edge::set_edge(POI poi1, POI poi2) { this->poi1 = poi1; this->poi2 = poi2; this->distance = cal_Cartesian_distance(poi1.get_coordinate(), poi2.get_coordinate()); this->cal_equ(); }
+void Edge::set_edge(POI poi1, POI poi2) { this->poi1 = poi1; this->poi2 = poi2; this->distance = cal_Cartesian_distance(poi1, poi2); this->cal_equ(); }
 vector<POI> Edge::get_edge() { vector<POI> edge = {this->poi1, this->poi2}; return edge; }
 double Edge::get_distance() { return this->distance; }
 double Edge::get_equ_c() { return this->equ_c; }
@@ -184,7 +197,7 @@ void BruteForceClostestPoints(Map &map, Coordinate &coo1, Coordinate &coo2) {
 
     for(int i = 0;i < map.get_POIs_length() - 1;i++) {
         for(int j = i+1;j < map.get_POIs_length();j++) {
-            double distance = cal_distance(map.get_POI_coordinate(i), map.get_POI_coordinate(j));
+            double distance = cal_distance(map.get_POI(i), map.get_POI(j));
             if(distance < dmin) {
                 dmin = distance;
                 coo1 = map.get_POI_coordinate(i);
@@ -213,27 +226,33 @@ void BruteForceConvexHull(Map &map) {
                     }
                 }
             }
-            if(is_convex_hull_edge) map.add_Convex_Hull_edge(edge);
+            if(is_convex_hull_edge) { map.add_Convex_Hull_edge(edge); break; }
         }
     }
 
+    map.add_Convex_Hull_edge(Edge(map.get_CH_edge(map.get_CH_edges_length()-1).get_edge()[1], map.get_CH_edge(0).get_edge()[0]));
+
+}
+
+// other functions
+double cal_Convex_Hull_area(Map &map) {
+
+    double area = 0;
+
+    for(int i = 0;i < map.get_CH_edges_length();i++) {
+        vector<POI> pois = map.get_CH_edge(i).get_edge();
+        Coordinate cacoo1 = pois[0].get_cartesian_coordinate(), cacoo2 = pois[1].get_cartesian_coordinate();
+        area += cacoo1.get_longitude() * cacoo2.get_latitude() - cacoo2.get_longitude() * cacoo1.get_latitude();
+    }
+
+    return abs(area) / 2.0;
 }
 
 // tools
 double to_radians(double degrees) { return degrees / 180.0 * PI; }
-double cal_distance(Coordinate coo1, Coordinate coo2) { return sqrt(pow(coo1.get_longitude() - coo2.get_longitude(), 2) + pow(coo1.get_latitude() - coo2.get_latitude(), 2)); }
-double cal_Cartesian_distance(Coordinate coo1, Coordinate coo2) {
-    // Radius of the Earth (km)
-    const double R = 6371.0;
-    // Convert coordinates to Cartesian coordinate system
-    double long1 = coo1.get_longitude(), long2 = coo2.get_longitude(), lati1 = coo1.get_latitude(), lati2 = coo2.get_latitude();
-    double x1 = R * cos(to_radians(lati1)) * cos(to_radians(long1));
-    double y1 = R * cos(to_radians(lati1)) * sin(to_radians(long1));
-    double z1 = R * sin(to_radians(lati1));
-    double x2 = R * cos(to_radians(lati2)) * cos(to_radians(long2));
-    double y2 = R * cos(to_radians(lati2)) * sin(to_radians(long2));
-    double z2 = R * sin(to_radians(lati2));
-    // Calculate Euclidean distance
-    return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2) + pow(z1 - z2, 2));
+double cal_distance(POI poi1, POI poi2) { return sqrt(pow(poi1.get_longitude() - poi2.get_longitude(), 2) + pow(poi1.get_latitude() - poi2.get_latitude(), 2)); }
+double cal_Cartesian_distance(POI poi1, POI poi2) {
+    Coordinate cacoo1 = poi1.get_cartesian_coordinate(), cacoo2 = poi2.get_cartesian_coordinate();
+    return sqrt(pow(cacoo1.get_longitude() - cacoo2.get_longitude(), 2) + pow(cacoo1.get_latitude() - cacoo2.get_latitude(), 2));
 }
 
