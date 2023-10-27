@@ -40,6 +40,7 @@ class POI {
 
 class Edge {
     public:
+        Edge();
         Edge(POI, POI);
         void set_edge(POI, POI);
         vector<POI> get_edge();
@@ -71,11 +72,11 @@ class Map {
     private:
         vector<POI> POIs;
         vector<Edge> Convex_Hull_edges;
-        int POIs_length, CH_edges_length;
+        // int POIs_length, CH_edges_length;
 };
 
 // algorithms
-void BruteForceClostestPoints(Map&, Coordinate&, Coordinate&);
+void BruteForceClostestPoints(Map&, POI&, POI&);
 void BruteForceConvexHull(Map&);
 
 // other functions
@@ -112,9 +113,10 @@ int main(void) {
     }
     cout << endl;
 
-    Coordinate coo1, coo2;
-    BruteForceClostestPoints(map, coo1, coo2);
-    cout << "Closest Pair: (" << coo1.get_longitude() << ", " << coo1.get_latitude() << "), (" << coo2.get_longitude() << ", " << coo2.get_latitude() << ')' << endl;
+    POI poi1, poi2;
+    BruteForceClostestPoints(map, poi1, poi2);
+    cout << "[Closest Pair]" << endl << poi1.get_name() << ": (" << poi1.get_longitude() << ", " << poi1.get_latitude() << "), " << poi2.get_name() << ": (" << poi2.get_longitude() << ", " << poi2.get_latitude() << ')' << endl;
+    cout << "Distance: " << cal_Cartesian_distance(poi1, poi2) << " km" << endl;
 
     BruteForceConvexHull(map);
     
@@ -160,6 +162,7 @@ void POI::cal_cartesian_coordinate() {
 }
 
 // Edge class
+Edge::Edge() {}
 Edge::Edge(POI poi1, POI poi2) { set_edge(poi1, poi2); }
 void Edge::set_edge(POI poi1, POI poi2) { this->poi1 = poi1; this->poi2 = poi2; this->distance = cal_Cartesian_distance(poi1, poi2); this->cal_equ(); }
 vector<POI> Edge::get_edge() { vector<POI> edge = {this->poi1, this->poi2}; return edge; }
@@ -177,21 +180,21 @@ double Edge::equ_substitute(double longitude, double latitude) { return this->eq
 double Edge::equ_substitute(POI poi) { return this->equ_longitude_cof * poi.get_longitude() + this->equ_latitude_cof * poi.get_latitude(); }
 
 // Map class
-Map::Map() { this->POIs_length = 0; this->CH_edges_length = 0; }
-void Map::add_POI(double longitude, double latitude) { this->POIs.push_back(POI(longitude, latitude)); this->POIs_length++; }
-void Map::add_POI(double longitude, double latitude, string name) { this->POIs.push_back(POI(longitude, latitude, name)); this->POIs_length++; }
-void Map::add_Convex_Hull_edge(Edge edge) { this->Convex_Hull_edges.push_back(edge); this->CH_edges_length++; }
+Map::Map() {}
+void Map::add_POI(double longitude, double latitude) { this->POIs.push_back(POI(longitude, latitude)); }
+void Map::add_POI(double longitude, double latitude, string name) { this->POIs.push_back(POI(longitude, latitude, name)); }
+void Map::add_Convex_Hull_edge(Edge edge) { this->Convex_Hull_edges.push_back(edge); }
 double Map::get_POI_longitude(int index) { return this->POIs[index].get_longitude(); }
 double Map::get_POI_latitude(int index) { return this->POIs[index].get_latitude(); }
 string Map::get_POI_name(int index) { return this->POIs[index].get_name(); }
 Coordinate Map::get_POI_coordinate(int index) { return this->POIs[index].get_coordinate(); }
 POI Map::get_POI(int index) { return this->POIs[index]; }
 Edge Map::get_CH_edge(int index) { return this->Convex_Hull_edges[index]; }
-int Map::get_POIs_length() { return this->POIs_length; }
-int Map::get_CH_edges_length() { return this->CH_edges_length; }
+int Map::get_POIs_length() { return this->POIs.size(); }
+int Map::get_CH_edges_length() { return this->Convex_Hull_edges.size(); }
 
 // algorithms
-void BruteForceClostestPoints(Map &map, Coordinate &coo1, Coordinate &coo2) {
+void BruteForceClostestPoints(Map &map, POI &poi1, POI &poi2) {
 
     double dmin = INT32_MAX;
 
@@ -200,8 +203,8 @@ void BruteForceClostestPoints(Map &map, Coordinate &coo1, Coordinate &coo2) {
             double distance = cal_distance(map.get_POI(i), map.get_POI(j));
             if(distance < dmin) {
                 dmin = distance;
-                coo1 = map.get_POI_coordinate(i);
-                coo2 = map.get_POI_coordinate(j);
+                poi1 = map.get_POI(i);
+                poi2 = map.get_POI(j);
             }
         }
     }
