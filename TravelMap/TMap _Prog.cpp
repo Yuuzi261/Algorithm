@@ -104,7 +104,6 @@ void sort_with_distance(vector<POI>&, POI);
 int main(void) {
 
     LARGE_INTEGER freq, start, end;
-    double elapsed;
     QueryPerformanceFrequency(&freq);
 
     Map map;
@@ -113,7 +112,11 @@ int main(void) {
 
     int number_POIs;
 
-    ifs.open("td.txt");
+    string map_filename;
+    cout << "Enter the filename of Map: ";
+    getline(cin, map_filename);
+
+    ifs.open(map_filename + ".in");
     ifs >> number_POIs;
 
     for(int i = 0;i < number_POIs;i++) {
@@ -121,12 +124,12 @@ int main(void) {
         string name;
         ifs >> longitude >> latitude;
         getline(ifs, name);
-        map.add_POI(longitude, latitude, name);
+        map.add_POI(longitude, latitude, string().assign(name, 1, name.size()));
     }
 
     ifs.close();
 
-    cout << "[POIs List]" << endl;
+    cout << endl << "[POIs List]" << endl;
     for(int i = 0;i < number_POIs;i++) {
         cout << map.get_POI_name(i) << ": (" << map.get_POI_longitude(i) << ", " << map.get_POI_latitude(i) << ')' << endl;
     }
@@ -145,7 +148,7 @@ int main(void) {
         Edge edge = map.get_CH_edge(i);
         vector<POI>pois = edge.get_edge();
         Coordinate coo1 = pois[0].get_coordinate(), coo2 = pois[1].get_coordinate();
-        cout << pois[0].get_name() << ": (" << coo1.get_longitude() << ", " << coo1.get_latitude() << ") ---" << pois[1].get_name() << ": (" << coo2.get_longitude() << ", " << coo2.get_latitude() << ')' << endl;
+        cout << pois[0].get_name() << ": (" << coo1.get_longitude() << ", " << coo1.get_latitude() << ") --> " << pois[1].get_name() << ": (" << coo2.get_longitude() << ", " << coo2.get_latitude() << ')' << endl;
         total_distance += edge.get_distance();
     }
     cout << endl << "Total Distance: " << total_distance << " km" << endl;
@@ -154,30 +157,33 @@ int main(void) {
     QueryPerformanceCounter(&start);
     map.BruteForceTSP();
     QueryPerformanceCounter(&end);
-    elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
+    double BF_elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
 
-    cout << endl << "[TSP Problem]" " Elasped: " << elapsed << " s" << endl << "Brute Force TSP:" << endl;
+    cout << endl << "[TSP Problem]" << endl << "Brute Force TSP:" << " Elasped: " << BF_elapsed << " s" << endl;
     vector<int> shortest_route = map.get_shortest_route();
     for(int i = 0;i < shortest_route.size()-1;i++) {
         POI poi = map.get_POI(shortest_route[i]);
-        cout << poi.get_name() << " -->";
+        cout << poi.get_name() << " --> ";
     }
     cout << map.get_POI(shortest_route[shortest_route.size()-1]).get_name() << endl;
-    cout << endl << "Total Distance: " << map.get_min_distance() << " km" << endl;
+    cout << "Total Distance: " << map.get_min_distance() << " km" << endl;
 
     QueryPerformanceCounter(&start);
     map.ConvexHullTSP();
     QueryPerformanceCounter(&end);
-    elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart * 1000;
+    double CH_elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart * 1000;
 
-    cout << endl << "Convex Hull TSP:" << " Elasped: " << elapsed << " ms" << endl;
+    cout << endl << "Convex Hull TSP:" << " Elasped: " << CH_elapsed << " ms" << endl;
     vector<POI> CH_shortest_route = map.get_CH_shortest_route();
     double CH_min_distance = 0;
     for(int i = 0;i < CH_shortest_route.size()-1;i++){
-        cout << CH_shortest_route[i].get_name() << " -->";
+        cout << CH_shortest_route[i].get_name() << " --> ";
         CH_min_distance += cal_Cartesian_distance(CH_shortest_route[i], CH_shortest_route[i+1]);
     }
-    cout << CH_shortest_route[CH_shortest_route.size()-1].get_name() << endl << endl << "Total Distance: " << CH_min_distance << " km" << endl;
+    cout << CH_shortest_route[CH_shortest_route.size()-1].get_name() << endl << "Total Distance: " << CH_min_distance << " km" << endl << endl;
+
+    cout << "Distance Ratio = " << CH_min_distance / map.get_min_distance() << endl;
+    cout << "Execution Time Ratio = " << CH_elapsed / BF_elapsed << endl;
 
     return 0;
 
