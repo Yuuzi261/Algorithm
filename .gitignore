@@ -34,8 +34,5 @@
 # vscode
 .vscode
 
-# input files
-*.in
-
-# output files
+# I/O files
 *.txt

@@ -1,10 +1,11 @@
 #include <iostream>
+#include <cstdint>
 #include <vector>
 #include <string>
 #include <fstream>
 #include <cmath>
 #include <algorithm>
-#include <windows.h>
+#include <chrono>
 
 #define PI acos(-1);
 #define Earth_R 6371.0;     // Radius of the Earth (km)
@@ -27,6 +28,7 @@ class POI {
         POI();
         POI(double, double);
         POI(double, double, string);
+        bool operator!=(const POI&) const;
         void set_coordinate(double, double);
         void set_coordinate(Coordinate);
         void set_isCH_POI(bool);
@@ -80,10 +82,12 @@ class Map {
         double get_min_distance();
         int get_POIs_length();
         int get_CH_edges_length();
+        bool test_CH_edge(POI&, POI&);
         // algorithms
         void BruteForceClostestPoints(POI&, POI&);
         void BruteForceConvexHull();
         void BruteForceTSP();
+        void BruteForceTSP_STT();
         void ConvexHullTSP();
     private:
         vector<POI> POIs;
@@ -98,28 +102,22 @@ double cal_Convex_Hull_area(Map&);
 
 // tools
 double to_radians(double);
-double cal_Cartesian_distance(POI, POI);
+double cal_Cartesian_distance(POI&, POI&);
 void sort_with_distance(vector<POI>&, POI);
 
 int main(void) {
-
-    LARGE_INTEGER freq, start, end;
-    QueryPerformanceFrequency(&freq);
 
     Map map;
 
     ifstream ifs;
 
-    int number_POIs;
-
     string map_filename;
     cout << "Enter the filename of Map: ";
     getline(cin, map_filename);
 
-    ifs.open(map_filename + ".in");
-    ifs >> number_POIs;
+    ifs.open(map_filename + ".txt");
 
-    for(int i = 0;i < number_POIs;i++) {
+    while(!ifs.eof()) {
         double longitude, latitude;
         string name;
         ifs >> longitude >> latitude;
@@ -130,7 +128,7 @@ int main(void) {
     ifs.close();
 
     cout << endl << "[POIs List]" << endl;
-    for(int i = 0;i < number_POIs;i++) {
+    for(int i = 0;i < map.get_POIs_length();i++) {
         cout << map.get_POI_name(i) << ": (" << map.get_POI_longitude(i) << ", " << map.get_POI_latitude(i) << ')' << endl;
     }
     cout << endl;
@@ -154,12 +152,18 @@ int main(void) {
     cout << endl << "Total Distance: " << total_distance << " km" << endl;
     cout << "Total Area: " << cal_Convex_Hull_area(map) << " km^2" << endl;
 
-    QueryPerformanceCounter(&start);
+    auto start = chrono::high_resolution_clock::now();
     map.BruteForceTSP();
-    QueryPerformanceCounter(&end);
-    double BF_elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart;
+    auto finish = chrono::high_resolution_clock::now();
+    long double BF_elapsed = chrono::duration_cast<chrono::microseconds>(finish - start).count();
 
-    cout << endl << "[TSP Problem]" << endl << "Brute Force TSP:" << " Elasped: " << BF_elapsed << " s" << endl;
+    start = chrono::high_resolution_clock::now();
+    map.BruteForceTSP_STT();
+    finish = chrono::high_resolution_clock::now();
+    long double BF_STT_elapsed = chrono::duration_cast<chrono::microseconds>(finish - start).count();
+
+    cout << endl << "[TSP Problem]" << endl << "Brute Force TSP:" << " Elasped: " << BF_elapsed / pow(10, 6) << " s, " << BF_elapsed << " mus" << endl;
+    cout << "Brute Force TSP (space-time tradeoff):" << " Elasped: " << BF_STT_elapsed / pow(10, 6) << " s, " << BF_STT_elapsed << " mus" << endl;
     vector<int> shortest_route = map.get_shortest_route();
     for(int i = 0;i < shortest_route.size()-1;i++) {
         POI poi = map.get_POI(shortest_route[i]);
@@ -168,12 +172,12 @@ int main(void) {
     cout << map.get_POI(shortest_route[shortest_route.size()-1]).get_name() << endl;
     cout << "Total Distance: " << map.get_min_distance() << " km" << endl;
 
-    QueryPerformanceCounter(&start);
+    start = chrono::high_resolution_clock::now();
     map.ConvexHullTSP();
-    QueryPerformanceCounter(&end);
-    double CH_elapsed = (double)(end.QuadPart - start.QuadPart) / freq.QuadPart * 1000;
+    finish = chrono::high_resolution_clock::now();
+    long double CH_elapsed = chrono::duration_cast<chrono::nanoseconds>(finish - start).count();
 
-    cout << endl << "Convex Hull TSP:" << " Elasped: " << CH_elapsed << " ms" << endl;
+    cout << endl << "Convex Hull TSP:" << " Elasped: " << CH_elapsed / 1000.0 << " mus" << endl;
     vector<POI> CH_shortest_route = map.get_CH_shortest_route();
     double CH_min_distance = 0;
     for(int i = 0;i < CH_shortest_route.size()-1;i++){
@@ -183,7 +187,8 @@ int main(void) {
     cout << CH_shortest_route[CH_shortest_route.size()-1].get_name() << endl << "Total Distance: " << CH_min_distance << " km" << endl << endl;
 
     cout << "Distance Ratio = " << CH_min_distance / map.get_min_distance() << endl;
-    cout << "Execution Time Ratio = " << CH_elapsed / BF_elapsed << endl;
+    cout << "Execution Time Ratio = " << CH_elapsed / BF_elapsed / pow(10, 3) << endl;
+    cout << "Execution Time Ratio (v.s. BF_STT) = " << CH_elapsed / BF_STT_elapsed / pow(10, 3) << endl;
 
     return 0;
 
@@ -200,6 +205,7 @@ double Coordinate::get_latitude() { return this->latitude; }
 POI::POI() { this->coordinate = Coordinate(); this->cartesian_coordinate = Coordinate(); this->name = ""; this->isCH_POI = false; }
 POI::POI(double longitude, double latitude) { this->coordinate = Coordinate(longitude, latitude); this->cal_cartesian_coordinate(); this->name = ""; this->isCH_POI = false; }
 POI::POI(double longitude, double latitude, string name) { this->coordinate = Coordinate(longitude, latitude); this->cal_cartesian_coordinate(); this->name = name; this->isCH_POI = false; }
+bool POI::operator!=(const POI &poi) const { if(this->name != poi.name) return true; else return false; }
 void POI::set_coordinate(double longitude, double latitude) { this->set_coordinate(longitude, latitude); }
 void POI::set_coordinate(Coordinate coordinate) { this->coordinate = coordinate; }
 void POI::set_isCH_POI(bool isCH_POI) { this->isCH_POI = isCH_POI; }
@@ -253,6 +259,26 @@ vector<POI> Map::get_CH_shortest_route() { return this->CH_shortest_route; }
 double Map::get_min_distance() { return this->min_distance; }
 int Map::get_POIs_length() { return this->POIs.size(); }
 int Map::get_CH_edges_length() { return this->Convex_Hull_edges.size(); }
+bool Map::test_CH_edge(POI& from, POI& to) {
+
+    double less = 0, more = 0;
+    bool is_convex_hull_edge = true;
+    Edge edge(from, to);
+    for(POI poi:this->POIs) {
+        if(poi != from && poi != to) {
+            double c = edge.equ_substitute(poi);
+            if(c > edge.get_equ_c()) more++;
+            else if(c < edge.get_equ_c()) less++;
+            if(less != 0 && more != 0) {
+                is_convex_hull_edge = false;
+                break;
+            }
+        }
+    }
+    
+    return is_convex_hull_edge;
+
+}
 
 // algorithms
 void Map::BruteForceClostestPoints(POI &poi1, POI &poi2) {
@@ -274,32 +300,34 @@ void Map::BruteForceClostestPoints(POI &poi1, POI &poi2) {
 
 void Map::BruteForceConvexHull() {
 
-    for(int i = 0;i < this->get_POIs_length() - 1;i++) {
-        for(int j = i+1;j < this->get_POIs_length();j++) {
-            Edge edge(this->POIs[i], this->POIs[j]);
-            double less = 0, more = 0;
-            bool is_convex_hull_edge = true;
-            for(int k = 0; k < this->get_POIs_length();k++) {
-                if(k != i && k != j) {
-                    double c = edge.equ_substitute(this->POIs[k]);
-                    if(c > edge.get_equ_c()) more++;
-                    else if(c < edge.get_equ_c()) less++;
-                    if(less != 0 && more != 0) {
-                        is_convex_hull_edge = false;
-                        break;
-                    }
-                }
-            }
-            if(is_convex_hull_edge) {
-                this->add_Convex_Hull_edge(edge);
-                this->POIs[i].set_isCH_POI(true);
-                this->POIs[j].set_isCH_POI(true);
+    int i = 0, j = 1;
+    bool is_find = this->test_CH_edge(this->POIs[i], this->POIs[j]);
+    while(!is_find) {
+        if(j < this->get_POIs_length()) j++;
+        else if(i < this->get_POIs_length() - 1) { i++; j = i+1; }
+        else break;
+        is_find = this->test_CH_edge(this->POIs[i], this->POIs[j]);
+    }
+
+    this->POIs[i].set_isCH_POI(true);
+    this->POIs[j].set_isCH_POI(true);
+    POI start = this->POIs[i], from = this->POIs[j];
+    this->add_Convex_Hull_edge(Edge(start, from));
+
+    do {
+        is_find = false;
+        for(POI &poi:this->POIs) {
+            if(!poi.get_isCH_POI() && this->test_CH_edge(from, poi)) {
+                poi.set_isCH_POI(true);
+                this->add_Convex_Hull_edge(Edge(from, poi));
+                from = poi;
+                is_find = true;
                 break;
             }
         }
-    }
+    } while(is_find);
 
-    this->add_Convex_Hull_edge(Edge(this->get_CH_edge(this->get_CH_edges_length()-1).get_edge()[1], this->get_CH_edge(0).get_edge()[0]));
+    this->add_Convex_Hull_edge(Edge(from, start));
 
 }
 
@@ -316,8 +344,41 @@ void Map::BruteForceTSP() {
         route_extend.insert(route_extend.begin(), 0);
         route_extend.push_back(0);
         double distance = 0;
-        for(int i = 0;i < route_extend.size()-1;i++) {
+        for(int i = 0;i < route_extend.size()-1;i++)
             distance += cal_Cartesian_distance(this->POIs[route_extend[i]], this->POIs[route_extend[i+1]]);
+        if(distance < this->min_distance) {
+            this->min_distance = distance;
+            this->shortest_route = vector<int>(route_extend);
+        }
+
+    } while(next_permutation(route.begin(), route.end()));
+
+}
+
+void Map::BruteForceTSP_STT() {
+
+    this->min_distance = INT32_MAX;
+    this->shortest_route = vector<int>();
+    vector<int> route;
+    for(int i = 1;i < this->get_POIs_length();i++) route.push_back(i);
+
+    vector<vector<double>> distance_ts(this->POIs.size());
+    for(int i = 0;i < this->POIs.size();i++)
+        for(int j = 0;j < this->POIs.size();j++) distance_ts[i].push_back(-1);
+
+    do {
+
+        vector<int> route_extend(route);
+        route_extend.insert(route_extend.begin(), 0);
+        route_extend.push_back(0);
+        double distance = 0;
+        for(int i = 0;i < route_extend.size()-1;i++) {
+            if(distance_ts[route_extend[i]][route_extend[i+1]] != -1) distance += distance_ts[route_extend[i]][route_extend[i+1]];
+            else {
+                double temp_d = cal_Cartesian_distance(this->POIs[route_extend[i]], this->POIs[route_extend[i+1]]);
+                distance += temp_d;
+                distance_ts[route_extend[i]][route_extend[i+1]] = temp_d;
+            }
         }
         if(distance < this->min_distance) {
             this->min_distance = distance;
@@ -373,7 +434,7 @@ double cal_Convex_Hull_area(Map &map) {
 
 // tools
 double to_radians(double degrees) { return degrees / 180.0 * PI; }
-double cal_Cartesian_distance(POI poi1, POI poi2) {
+double cal_Cartesian_distance(POI &poi1, POI &poi2) {
     Coordinate cacoo1 = poi1.get_cartesian_coordinate(), cacoo2 = poi2.get_cartesian_coordinate();
     return sqrt(pow(cacoo1.get_longitude() - cacoo2.get_longitude(), 2) + pow(cacoo1.get_latitude() - cacoo2.get_latitude(), 2));
 }
